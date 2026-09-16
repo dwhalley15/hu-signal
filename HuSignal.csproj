@@ -51,9 +51,4 @@
 
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="build\thtaai.targets" Pack="true" PackagePath="build\HuSignal.targets" />
-    <None Include="build\thtaai.targets" Pack="true" PackagePath="buildTransitive\HuSignal.targets" />
-  </ItemGroup>
-
 </Project>
