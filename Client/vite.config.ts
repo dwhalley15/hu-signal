@@ -4,7 +4,7 @@ import path from "node:path";
 
 export default defineConfig({
   build: {
-    outDir: "../wwwroot/App_Plugins/husignal",
+    outDir: "../wwwroot",
     emptyOutDir: true,
 
     lib: {
@@ -35,7 +35,7 @@ export default defineConfig({
 
         const outputPackagePath = path.resolve(
           process.cwd(),
-          "../wwwroot/App_Plugins/husignal/umbraco-package.json"
+          "../wwwroot/umbraco-package.json"
         );
 
         const umbracoPackage = JSON.parse(
@@ -45,7 +45,7 @@ export default defineConfig({
         const buildVersion = Date.now();
 
         umbracoPackage.extensions[0].js =
-          `/App_Plugins/husignal/hu-signal.js?v=${buildVersion}`;
+          `/App_Plugins/HuSignal/hu-signal.js?v=${buildVersion}`;
 
         fs.writeFileSync(
           outputPackagePath,
