@@ -17,8 +17,8 @@
     <Company>the human tech agency</Company>
     <Description></Description>
     <PackageTags>umbraco umbraco-marketplace seo </PackageTags>
-    <PackageProjectUrl></PackageProjectUrl>
-    <RepositoryUrl></RepositoryUrl>
+    <PackageProjectUrl>https://github.com/dwhalley15/hu-signal</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/dwhalley15/hu-signal</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageIcon>icon.png</PackageIcon>
