@@ -16,7 +16,7 @@
     <Authors>David Whalley</Authors>
     <Company>the human tech agency</Company>
     <Description></Description>
-    <PackageTags>umbraco umbraco-marketplace seo </PackageTags>
+    <PackageTags>umbraco umbraco-marketplace seo analytics clarity reporting</PackageTags>
     <PackageProjectUrl>https://github.com/dwhalley15/hu-signal</PackageProjectUrl>
     <RepositoryUrl>https://github.com/dwhalley15/hu-signal</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -45,13 +45,6 @@
     <!-- Don't include the client folder as part of packaging nuget build -->
     <Content Remove="Client\**" />
 
-    <Content Remove="umbraco-marketplace.json" />
-    <None Remove="umbraco-marketplace.json" />
-
-    <!-- Explicitly pack it at the .nupkg root — visible in the package,
-        but NOT copied into a consumer's project on install -->
-    <None Include="umbraco-marketplace.json" Pack="true" PackagePath="\" />
-
      <!-- Package assets that need to physically land in the .nupkg -->
     <None Include="icon.png" Pack="true" PackagePath="\" />
     <None Include="README.md" Pack="true" PackagePath="\" />
@@ -59,9 +52,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="build\thtaai.targets" Pack="true" PackagePath="build\thtaai.targets" />
-    <None Include="build\thtaai.targets" Pack="true" PackagePath="buildTransitive\thtaai.targets" />
-    <None Include="build\thtaai.targets" Pack="true" PackagePath="buildMultiTargeting\thtaai.targets" />
+    <None Include="build\thtaai.targets" Pack="true" PackagePath="build\HuSignal.targets" />
+    <None Include="build\thtaai.targets" Pack="true" PackagePath="buildTransitive\HuSignal.targets" />
   </ItemGroup>
 
 </Project>
