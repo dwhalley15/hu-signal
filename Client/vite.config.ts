@@ -4,7 +4,7 @@ import path from "node:path";
 
 export default defineConfig({
   build: {
-    outDir: "../wwwroot",
+    outDir: "../dist/HuSignal",
     emptyOutDir: true,
 
     lib: {
@@ -35,7 +35,7 @@ export default defineConfig({
 
         const outputPackagePath = path.resolve(
           process.cwd(),
-          "../wwwroot/umbraco-package.json"
+          "../dist/HuSignal/umbraco-package.json"
         );
 
         const umbracoPackage = JSON.parse(
@@ -50,10 +50,6 @@ export default defineConfig({
         fs.writeFileSync(
           outputPackagePath,
           JSON.stringify(umbracoPackage, null, 2)
-        );
-
-        console.log(
-          `Generated Umbraco manifest with build version ${buildVersion}`
         );
       },
     },

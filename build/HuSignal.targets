@@ -1,0 +1,13 @@
+<Project>
+  <Target Name="HuSignalCopyAppPlugins" AfterTargets="Build">
+    <ItemGroup>
+      <HuSignalAppPluginsFiles
+        Include="$(MSBuildThisFileDirectory)..\staticwebassets\App_Plugins\HuSignal\**\*" />
+    </ItemGroup>
+
+    <Copy
+      SourceFiles="@(HuSignalAppPluginsFiles)"
+      DestinationFolder="$(MSBuildProjectDirectory)\wwwroot\App_Plugins\HuSignal\%(RecursiveDir)"
+      SkipUnchangedFiles="true" />
+  </Target>
+</Project>

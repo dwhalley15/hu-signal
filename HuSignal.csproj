@@ -12,7 +12,7 @@
     <Title>HuSignal</Title>
 
     <!-- Packaging metadata -->
-    <Version>0.1.0</Version>
+    <Version>0.1.3</Version>
     <Authors>David Whalley</Authors>
     <Company>the human tech agency</Company>
     <Description></Description>
@@ -21,15 +21,13 @@
     <RepositoryUrl>https://github.com/dwhalley15/hu-signal</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+
     <PackageIcon>icon.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-
-    <StaticWebAssetBasePath>App_Plugins/HuSignal</StaticWebAssetBasePath>
     <!-- Build behaviour -->
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
-
 
   <!-- Central package management - no versions -->
   <ItemGroup>
@@ -40,15 +38,30 @@
     <PackageReference Include="Umbraco.Cms.Web.Website" />
   </ItemGroup>
 
-
   <ItemGroup>
-    <!-- Don't include the client folder as part of packaging nuget build -->
     <Content Remove="Client\**" />
+    <Content Remove="dist\**" />
+    <None Remove="dist\**" />
 
-     <!-- Package assets that need to physically land in the .nupkg -->
-    <None Include="icon.png" Pack="true" PackagePath="\" />
-    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="dist\HuSignal\**\*"
+          Pack="true"
+          PackagePath="staticwebassets\App_Plugins\HuSignal\%(RecursiveDir)%(Filename)%(Extension)" />
 
+    <None Include="build\HuSignal.targets"
+          Pack="true"
+          PackagePath="build\HuSignal.targets" />
+
+    <None Include="build\HuSignal.targets"
+          Pack="true"
+          PackagePath="buildTransitive\HuSignal.targets" />
+
+    <None Include="icon.png"
+          Pack="true"
+          PackagePath="\" />
+
+    <None Include="README.md"
+          Pack="true"
+          PackagePath="\" />
   </ItemGroup>
 
 </Project>
