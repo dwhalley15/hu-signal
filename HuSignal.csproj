@@ -1,0 +1,67 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <StaticWebAssetBasePath>/</StaticWebAssetBasePath>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>HuSignal</PackageId>
+    <Product>HuSignal</Product>
+    <Title>HuSignal</Title>
+
+    <!-- Packaging metadata -->
+    <Version>0.1.0</Version>
+    <Authors>David Whalley</Authors>
+    <Company>the human tech agency</Company>
+    <Description></Description>
+    <PackageTags>umbraco umbraco-marketplace seo </PackageTags>
+    <PackageProjectUrl></PackageProjectUrl>
+    <RepositoryUrl></RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <StaticWebAssetBasePath>App_Plugins/HuSignal</StaticWebAssetBasePath>
+    <!-- Build behaviour -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+
+  <!-- Central package management - no versions -->
+  <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.Xml" />
+    <PackageReference Include="Umbraco.Cms.Api.Common" />
+    <PackageReference Include="Umbraco.Cms.Api.Management" />
+    <PackageReference Include="Umbraco.Cms.Web.Common" />
+    <PackageReference Include="Umbraco.Cms.Web.Website" />
+  </ItemGroup>
+
+
+  <ItemGroup>
+    <!-- Don't include the client folder as part of packaging nuget build -->
+    <Content Remove="Client\**" />
+
+    <Content Remove="umbraco-marketplace.json" />
+    <None Remove="umbraco-marketplace.json" />
+
+    <!-- Explicitly pack it at the .nupkg root — visible in the package,
+        but NOT copied into a consumer's project on install -->
+    <None Include="umbraco-marketplace.json" Pack="true" PackagePath="\" />
+
+     <!-- Package assets that need to physically land in the .nupkg -->
+    <None Include="icon.png" Pack="true" PackagePath="\" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="build\thtaai.targets" Pack="true" PackagePath="build\thtaai.targets" />
+    <None Include="build\thtaai.targets" Pack="true" PackagePath="buildTransitive\thtaai.targets" />
+    <None Include="build\thtaai.targets" Pack="true" PackagePath="buildMultiTargeting\thtaai.targets" />
+  </ItemGroup>
+
+</Project>

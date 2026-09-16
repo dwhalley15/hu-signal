@@ -1,0 +1,14 @@
+{
+  "id": "HuSignal",
+  "name": "HuSignal",
+  "version": "0.0.0",
+  "allowTelemetry": true,
+  "extensions": [
+    {
+      "name": "Hu Signal Bundle",
+      "alias": "HuSignal.Bundle",
+      "type": "bundle",
+      "js": "/App_Plugins/HuSignal/hu-signal.js"
+    }
+  ]
+}
