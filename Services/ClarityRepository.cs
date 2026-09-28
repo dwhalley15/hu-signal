@@ -134,4 +134,23 @@ public class ClarityRepository : IClarityRepository
 
         return results;
     }
+
+    public async Task<IReadOnlyList<int>> GetAvailableYearsAsync(
+    CancellationToken cancellationToken = default)
+    {
+        using var scope =
+            _scopeProvider.CreateScope(autoComplete: true);
+
+        var years =
+            await scope.Database.FetchAsync<int>(
+                """
+            SELECT DISTINCT YEAR(SnapshotDate)
+            FROM HuSignalClaritySnapshot
+            ORDER BY YEAR(SnapshotDate) DESC
+            """,
+                Array.Empty<object>(),
+                cancellationToken);
+
+        return years;
+    }
 }

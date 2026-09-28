@@ -101,16 +101,67 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
   @state()
   private _selectedMonth = new Date().getMonth() + 1;
 
+  @state()
+  private _availableYears: number[] = [];
+
+  @state()
+  private _generatingReport = false;
+
+  @state()
+  private _generatedReport?: string;
+
   override connectedCallback() {
     super.connectedCallback();
 
     void this._loadLatestSnapshot();
+    void this._loadAvailableYears();
   }
 
   private async _getAuthToken() {
     const authContext = await this.getContext(UMB_AUTH_CONTEXT);
 
     return await authContext?.getLatestToken();
+  }
+
+  private async _loadAvailableYears() {
+    try {
+      const token = await this._getAuthToken();
+
+      const response = await fetch(
+        "/umbraco/husignal/api/v1/clarity/years",
+        {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const text = await response.text();
+
+        throw new Error(
+          `Hu Signal API returned ${response.status}: ${text}`
+        );
+      }
+
+      this._availableYears =
+        (await response.json()) as number[];
+
+      if (
+        this._availableYears.length &&
+        !this._availableYears.includes(this._selectedYear)
+      ) {
+        this._selectedYear = this._availableYears[0];
+      }
+    } catch (error) {
+      console.error(
+        "Failed to load available Clarity years",
+        error
+      );
+    }
   }
 
   private async _loadLatestSnapshot() {
@@ -272,6 +323,60 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
     await this._loadPeriodData();
   }
 
+  private async _generateReport() {
+    if (this._viewMode === "latest") {
+      return;
+    }
+
+    this._generatingReport = true;
+    this._generatedReport = undefined;
+    this._error = undefined;
+
+    try {
+      const token = await this._getAuthToken();
+
+      const response = await fetch(
+        "/umbraco/husignal/api/v1/clarity/report",
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            periodType: this._viewMode,
+            year: this._selectedYear,
+            month:
+              this._viewMode === "monthly"
+                ? this._selectedMonth
+                : null,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const text = await response.text();
+
+        throw new Error(
+          `Hu Signal API returned ${response.status}: ${text}`
+        );
+      }
+
+      const result = await response.json();
+
+      this._generatedReport = result.report;
+    } catch (error) {
+      this._error =
+        error instanceof Error
+          ? error.message
+          : String(error);
+    } finally {
+      this._generatingReport = false;
+    }
+  }
+
   private async _onYearChange(event: Event) {
     const select = event.target as HTMLSelectElement;
 
@@ -357,19 +462,19 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
       <uui-box headline=${title}>
         <div class="signal-list">
           ${items.map((item) => {
-            const label =
-              item.name ??
-              item.url ??
-              (metricName === "ReferrerUrl"
-                ? "Direct"
-                : "Unknown");
+      const label =
+        item.name ??
+        item.url ??
+        (metricName === "ReferrerUrl"
+          ? "Direct"
+          : "Unknown");
 
-            const value =
-              item.sessionsCount ??
-              item.visitsCount ??
-              0;
+      const value =
+        item.sessionsCount ??
+        item.visitsCount ??
+        0;
 
-            return html`
+      return html`
               <div class="signal">
                 <span class="breakdown-label">
                   ${label}
@@ -380,7 +485,7 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
                 </strong>
               </div>
             `;
-          })}
+    })}
         </div>
       </uui-box>
     `;
@@ -400,14 +505,14 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
       <uui-box headline=${title}>
         <div class="signal-list">
           ${items.map((item) => {
-            const label =
-              item.name ??
-              item.url ??
-              (metricName === "ReferrerUrl"
-                ? "Direct"
-                : "Unknown");
+      const label =
+        item.name ??
+        item.url ??
+        (metricName === "ReferrerUrl"
+          ? "Direct"
+          : "Unknown");
 
-            return html`
+      return html`
               <div class="signal">
                 <span class="breakdown-label">
                   ${label}
@@ -418,7 +523,7 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
                 </strong>
               </div>
             `;
-          })}
+    })}
         </div>
       </uui-box>
     `;
@@ -430,8 +535,8 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
         <div class="view-switcher">
           <uui-button
             look=${this._viewMode === "latest"
-              ? "primary"
-              : "secondary"}
+        ? "primary"
+        : "secondary"}
             @click=${() => this._setViewMode("latest")}
           >
             Latest
@@ -439,8 +544,8 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
 
           <uui-button
             look=${this._viewMode === "monthly"
-              ? "primary"
-              : "secondary"}
+        ? "primary"
+        : "secondary"}
             @click=${() => this._setViewMode("monthly")}
           >
             Monthly
@@ -448,8 +553,8 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
 
           <uui-button
             look=${this._viewMode === "yearly"
-              ? "primary"
-              : "secondary"}
+        ? "primary"
+        : "secondary"}
             @click=${() => this._setViewMode("yearly")}
           >
             Yearly
@@ -457,19 +562,15 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
         </div>
 
         ${this._viewMode !== "latest"
-          ? this._renderPeriodControls()
-          : ""}
+        ? this._renderPeriodControls()
+        : ""}
       </div>
     `;
   }
 
   private _renderPeriodControls() {
-    const currentYear = new Date().getFullYear();
 
-    const years = Array.from(
-      { length: 6 },
-      (_, index) => currentYear - index
-    );
+    const years = this._availableYears;
 
     const months = [
       "January",
@@ -488,8 +589,22 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
 
     return html`
       <div class="period-controls">
+      ${this._viewMode !== "latest"
+        ? html`
+      <uui-button
+        look="primary"
+        color="positive"
+        ?disabled=${this._generatingReport}
+        @click=${this._generateReport}
+      >
+        ${this._generatingReport
+            ? "Generating report..."
+            : "Generate AI report"}
+      </uui-button>
+    `
+        : ""}
         ${this._viewMode === "monthly"
-          ? html`
+        ? html`
               <label>
                 <span>Month</span>
 
@@ -498,20 +613,20 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
                   @change=${this._onMonthChange}
                 >
                   ${months.map(
-                    (month, index) => html`
+          (month, index) => html`
                       <option
                         value=${index + 1}
                         ?selected=${this._selectedMonth ===
-                        index + 1}
+            index + 1}
                       >
                         ${month}
                       </option>
                     `
-                  )}
+        )}
                 </select>
               </label>
             `
-          : ""}
+        : ""}
 
         <label>
           <span>Year</span>
@@ -521,7 +636,7 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
             @change=${this._onYearChange}
           >
             ${years.map(
-              (year) => html`
+          (year) => html`
                 <option
                   value=${year}
                   ?selected=${this._selectedYear === year}
@@ -529,7 +644,7 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
                   ${year}
                 </option>
               `
-            )}
+        )}
           </select>
         </label>
       </div>
@@ -554,22 +669,22 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
             @click=${this._importClarity}
           >
             ${this._loading
-              ? "Loading..."
-              : "Import latest Clarity data"}
+        ? "Loading..."
+        : "Import latest Clarity data"}
           </uui-button>
         </header>
 
         ${this._renderViewSwitcher()}
 
         ${this._error
-          ? html`
+        ? html`
               <uui-box headline="Something went wrong">
                 <div class="error">
                   ${this._error}
                 </div>
               </uui-box>
             `
-          : ""}
+        : ""}
 
         ${this._renderContent()}
       </div>
@@ -660,38 +775,38 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
 
         <div class="metrics">
           ${this._renderMetric(
-            "Sessions",
-            this._formatNumber(snapshot.totalSessions)
-          )}
+      "Sessions",
+      this._formatNumber(snapshot.totalSessions)
+    )}
 
           ${this._renderMetric(
-            "Users",
-            this._formatNumber(snapshot.distinctUsers)
-          )}
+      "Users",
+      this._formatNumber(snapshot.distinctUsers)
+    )}
 
           ${this._renderMetric(
-            "Pages / session",
-            this._formatDecimal(snapshot.pagesPerSession)
-          )}
+      "Pages / session",
+      this._formatDecimal(snapshot.pagesPerSession)
+    )}
 
           ${this._renderMetric(
-            "Avg. scroll depth",
-            `${this._formatDecimal(
-              snapshot.averageScrollDepth
-            )}%`
-          )}
+      "Avg. scroll depth",
+      `${this._formatDecimal(
+        snapshot.averageScrollDepth
+      )}%`
+    )}
 
           ${this._renderMetric(
-            "Active time",
-            `${this._formatNumber(
-              snapshot.engagementActiveTime
-            )}s`
-          )}
+      "Active time",
+      `${this._formatNumber(
+        snapshot.engagementActiveTime
+      )}s`
+    )}
 
           ${this._renderMetric(
-            "Bot sessions",
-            this._formatNumber(snapshot.botSessions)
-          )}
+      "Bot sessions",
+      this._formatNumber(snapshot.botSessions)
+    )}
         </div>
       </uui-box>
 
@@ -699,105 +814,105 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
         <uui-box headline="Behaviour signals">
           <div class="signal-list">
             ${this._renderSignal(
-              "Quickbacks",
-              snapshot.quickbacks
-            )}
+      "Quickbacks",
+      snapshot.quickbacks
+    )}
 
             ${this._renderSignal(
-              "Rage clicks",
-              snapshot.rageClicks
-            )}
+      "Rage clicks",
+      snapshot.rageClicks
+    )}
 
             ${this._renderSignal(
-              "Dead clicks",
-              snapshot.deadClicks
-            )}
+      "Dead clicks",
+      snapshot.deadClicks
+    )}
 
             ${this._renderSignal(
-              "Excessive scroll",
-              snapshot.excessiveScrolls
-            )}
+      "Excessive scroll",
+      snapshot.excessiveScrolls
+    )}
 
             ${this._renderSignal(
-              "Error clicks",
-              snapshot.errorClicks
-            )}
+      "Error clicks",
+      snapshot.errorClicks
+    )}
 
             ${this._renderSignal(
-              "Script errors",
-              snapshot.scriptErrors
-            )}
+      "Script errors",
+      snapshot.scriptErrors
+    )}
           </div>
         </uui-box>
 
         <uui-box headline="Engagement">
           <div class="signal-list">
             ${this._renderSignal(
-              "Total engagement time",
-              `${snapshot.engagementTotalTime}s`
-            )}
+      "Total engagement time",
+      `${snapshot.engagementTotalTime}s`
+    )}
 
             ${this._renderSignal(
-              "Active engagement time",
-              `${snapshot.engagementActiveTime}s`
-            )}
+      "Active engagement time",
+      `${snapshot.engagementActiveTime}s`
+    )}
 
             ${this._renderSignal(
-              "Average scroll depth",
-              `${this._formatDecimal(
-                snapshot.averageScrollDepth
-              )}%`
-            )}
+      "Average scroll depth",
+      `${this._formatDecimal(
+        snapshot.averageScrollDepth
+      )}%`
+    )}
 
             ${this._renderSignal(
-              "Pages per session",
-              this._formatDecimal(snapshot.pagesPerSession)
-            )}
+      "Pages per session",
+      this._formatDecimal(snapshot.pagesPerSession)
+    )}
           </div>
         </uui-box>
       </div>
 
       <div class="grid">
         ${this._renderLatestBreakdown(
-          "Devices",
-          "Device"
-        )}
+      "Devices",
+      "Device"
+    )}
 
         ${this._renderLatestBreakdown(
-          "Countries",
-          "Country"
-        )}
+      "Countries",
+      "Country"
+    )}
       </div>
 
       <div class="grid">
         ${this._renderLatestBreakdown(
-          "Browsers",
-          "Browser"
-        )}
+      "Browsers",
+      "Browser"
+    )}
 
         ${this._renderLatestBreakdown(
-          "Operating systems",
-          "OS"
-        )}
+      "Operating systems",
+      "OS"
+    )}
       </div>
 
       <div class="grid">
         ${this._renderLatestBreakdown(
-          "Top pages",
-          "PopularPages"
-        )}
+      "Top pages",
+      "PopularPages"
+    )}
 
         ${this._renderLatestBreakdown(
-          "Referrers",
-          "ReferrerUrl"
-        )}
+      "Referrers",
+      "ReferrerUrl"
+    )}
       </div>
 
       <div class="single">
         ${this._renderLatestBreakdown(
-          "Page titles",
-          "PageTitle"
-        )}
+      "Page titles",
+      "PageTitle"
+    )}
       </div>
     `;
   }
@@ -837,28 +952,28 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
 
         <div class="metrics">
           ${this._renderMetric(
-            "Sessions",
-            this._formatNumber(data.totalSessions)
-          )}
+      "Sessions",
+      this._formatNumber(data.totalSessions)
+    )}
 
           ${this._renderMetric(
-            "Pages / session",
-            this._formatDecimal(
-              data.averagePagesPerSession
-            )
-          )}
+      "Pages / session",
+      this._formatDecimal(
+        data.averagePagesPerSession
+      )
+    )}
 
           ${this._renderMetric(
-            "Avg. scroll depth",
-            `${this._formatDecimal(
-              data.averageScrollDepth
-            )}%`
-          )}
+      "Avg. scroll depth",
+      `${this._formatDecimal(
+        data.averageScrollDepth
+      )}%`
+    )}
 
           ${this._renderMetric(
-            "Bot sessions",
-            this._formatNumber(data.botSessions)
-          )}
+      "Bot sessions",
+      this._formatNumber(data.botSessions)
+    )}
         </div>
       </uui-box>
 
@@ -866,78 +981,88 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
         <uui-box headline="Behaviour signals">
           <div class="signal-list">
             ${this._renderSignal(
-              "Quickbacks",
-              data.quickbacks
-            )}
+      "Quickbacks",
+      data.quickbacks
+    )}
 
             ${this._renderSignal(
-              "Rage clicks",
-              data.rageClicks
-            )}
+      "Rage clicks",
+      data.rageClicks
+    )}
 
             ${this._renderSignal(
-              "Dead clicks",
-              data.deadClicks
-            )}
+      "Dead clicks",
+      data.deadClicks
+    )}
 
             ${this._renderSignal(
-              "Excessive scroll",
-              data.excessiveScrolls
-            )}
+      "Excessive scroll",
+      data.excessiveScrolls
+    )}
 
             ${this._renderSignal(
-              "Error clicks",
-              data.errorClicks
-            )}
+      "Error clicks",
+      data.errorClicks
+    )}
 
             ${this._renderSignal(
-              "Script errors",
-              data.scriptErrors
-            )}
+      "Script errors",
+      data.scriptErrors
+    )}
           </div>
         </uui-box>
 
         ${this._renderPeriodBreakdown(
-          "Devices",
-          "Device"
-        )}
+      "Devices",
+      "Device"
+    )}
       </div>
 
       <div class="grid">
         ${this._renderPeriodBreakdown(
-          "Countries",
-          "Country"
-        )}
+      "Countries",
+      "Country"
+    )}
 
         ${this._renderPeriodBreakdown(
-          "Browsers",
-          "Browser"
-        )}
+      "Browsers",
+      "Browser"
+    )}
       </div>
 
       <div class="grid">
         ${this._renderPeriodBreakdown(
-          "Operating systems",
-          "OS"
-        )}
+      "Operating systems",
+      "OS"
+    )}
 
         ${this._renderPeriodBreakdown(
-          "Referrers",
-          "ReferrerUrl"
-        )}
+      "Referrers",
+      "ReferrerUrl"
+    )}
       </div>
 
       <div class="grid">
         ${this._renderPeriodBreakdown(
-          "Top pages",
-          "PopularPages"
-        )}
+      "Top pages",
+      "PopularPages"
+    )}
 
         ${this._renderPeriodBreakdown(
-          "Page titles",
-          "PageTitle"
-        )}
+      "Page titles",
+      "PageTitle"
+    )}
       </div>
+
+      ${this._generatedReport
+        ? html`
+      <uui-box headline="AI Report" class="report">
+        <div class="report-content">
+          ${this._generatedReport}
+        </div>
+      </uui-box>
+    `
+        : ""}
     `;
   }
 
@@ -952,6 +1077,15 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
         max-width: 1400px;
         margin: 0 auto;
       }
+
+      .report {
+  margin-top: var(--uui-size-layout-1);
+}
+
+.report-content {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
 
       header {
         display: flex;

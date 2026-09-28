@@ -10,6 +10,7 @@ using Umbraco.Cms.Api.Management.OpenApi;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
 
+
 namespace HuSignal.Composers
 {
     public class HuSignalApiComposer : IComposer
@@ -31,6 +32,11 @@ namespace HuSignal.Composers
             builder.Services.AddSingleton<IOperationIdHandler, HuSignalOperationIdHandler>();
 
             builder.Services.AddHostedService<ClarityImportBackgroundService>();
+
+            builder.Services.AddOptions<AiGenerationOptions>().Bind(
+                builder.Config.GetSection(AiGenerationOptions.SectionName));
+
+            builder.Services.AddHttpClient<IClarityAiReportService, ClarityAiReportService>();
 
             builder.Services.Configure<SwaggerGenOptions>(options =>
             {

@@ -13,14 +13,18 @@ namespace HuSignal.Controllers
 
         private readonly IClarityReportingService _clarityReportingService;
 
+        private readonly IClarityAiReportService _clarityAiReportService;
+
         public HuSignalApiController(
             IClarityImportService clarityImportService,
             IClarityRepository clarityRepository,
-            IClarityReportingService clarityReportingService)
+            IClarityReportingService clarityReportingService,
+            IClarityAiReportService clarityAiReportService)
         {
             _clarityImportService = clarityImportService;
             _clarityRepository = clarityRepository;
             _clarityReportingService = clarityReportingService;
+            _clarityAiReportService = clarityAiReportService;
         }
 
         [HttpPost("clarity/import")]
@@ -97,6 +101,36 @@ namespace HuSignal.Controllers
                 await _clarityReportingService.GetSummaryAsync(
                     from,
                     to,
+                    cancellationToken);
+
+            return Ok(result);
+        }
+
+        [HttpGet("clarity/years")]
+        [ProducesResponseType(
+        typeof(IReadOnlyList<int>),
+        StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetClarityYears(
+        CancellationToken cancellationToken)
+        {
+            var years =
+                await _clarityRepository.GetAvailableYearsAsync(
+                    cancellationToken);
+
+            return Ok(years);
+        }
+
+        [HttpPost("clarity/report")]
+        [ProducesResponseType(
+        typeof(GenerateClarityReportResponse),
+        StatusCodes.Status200OK)]
+        public async Task<IActionResult> GenerateClarityReport(
+        [FromBody] GenerateClarityReportRequest request,
+        CancellationToken cancellationToken)
+        {
+            var result =
+                await _clarityAiReportService.GenerateReportAsync(
+                    request,
                     cancellationToken);
 
             return Ok(result);

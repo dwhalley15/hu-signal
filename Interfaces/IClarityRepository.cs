@@ -1,9 +1,9 @@
 public interface IClarityRepository
 {
-      Task<int> SaveSnapshotAsync(
-        ClaritySnapshot snapshot,
-        IReadOnlyList<ClarityBreakdown> breakdowns,
-        CancellationToken cancellationToken = default);
+    Task<int> SaveSnapshotAsync(
+      ClaritySnapshot snapshot,
+      IReadOnlyList<ClarityBreakdown> breakdowns,
+      CancellationToken cancellationToken = default);
 
     Task<ClaritySnapshot?> GetLatestAsync(
         CancellationToken cancellationToken = default);
@@ -21,4 +21,7 @@ public interface IClarityRepository
         DateTime from,
         DateTime to,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<int>> GetAvailableYearsAsync(
+CancellationToken cancellationToken = default);
 }
