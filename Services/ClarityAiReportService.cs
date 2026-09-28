@@ -80,10 +80,12 @@ public class ClarityAiReportService : IClarityAiReportService
                 "Bearer",
                 _options.ApiKey);
 
-        httpRequest.Content = new StringContent(
-            json,
-            Encoding.UTF8,
-            "application/json");
+        var contentBytes = Encoding.UTF8.GetBytes(json);
+
+        httpRequest.Content = new ByteArrayContent(contentBytes);
+
+        httpRequest.Content.Headers.ContentType =
+            new MediaTypeHeaderValue("application/json");
 
         using var timeoutCts =
             new CancellationTokenSource(
