@@ -314,6 +314,7 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
   private async _setViewMode(mode: ViewMode) {
     this._viewMode = mode;
     this._error = undefined;
+    this._generatedReport = undefined;
 
     if (mode === "latest") {
       await this._loadLatestSnapshot();
@@ -367,6 +368,8 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
       const result = await response.json();
 
       this._generatedReport = result.report;
+      this._downloadReport(result.report);
+
     } catch (error) {
       this._error =
         error instanceof Error
@@ -377,10 +380,58 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
     }
   }
 
+  private _downloadReport(report: string) {
+    const monthNames = [
+      "january",
+      "february",
+      "march",
+      "april",
+      "may",
+      "june",
+      "july",
+      "august",
+      "september",
+      "october",
+      "november",
+      "december",
+    ];
+
+    const period =
+      this._viewMode === "monthly"
+        ? `${monthNames[this._selectedMonth - 1]}-${this._selectedYear}`
+        : `${this._selectedYear}`;
+
+    const filename =
+      `hu-signal-${this._viewMode}-report-${period}.md`;
+
+    const blob = new Blob(
+      [report],
+      {
+        type: "text/markdown;charset=utf-8",
+      }
+    );
+
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = filename;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+  }
+
   private async _onYearChange(event: Event) {
     const select = event.target as HTMLSelectElement;
 
     this._selectedYear = Number(select.value);
+    this._generatedReport = undefined;
 
     if (this._viewMode !== "latest") {
       await this._loadPeriodData();
@@ -391,6 +442,7 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
     const select = event.target as HTMLSelectElement;
 
     this._selectedMonth = Number(select.value);
+    this._generatedReport = undefined;
 
     if (this._viewMode === "monthly") {
       await this._loadPeriodData();
@@ -589,20 +641,6 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
 
     return html`
       <div class="period-controls">
-      ${this._viewMode !== "latest"
-        ? html`
-      <uui-button
-        look="primary"
-        color="positive"
-        ?disabled=${this._generatingReport}
-        @click=${this._generateReport}
-      >
-        ${this._generatingReport
-            ? "Generating report..."
-            : "Generate AI report"}
-      </uui-button>
-    `
-        : ""}
         ${this._viewMode === "monthly"
         ? html`
               <label>
@@ -647,6 +685,32 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
         )}
           </select>
         </label>
+
+        ${this._generatedReport
+        ? html`
+      <uui-button
+        class="report-button"
+        look="primary"
+        @click=${() =>
+            this._downloadReport(this._generatedReport!)}
+      >
+        Download report again
+      </uui-button>
+    `
+        : html`
+      <uui-button
+        class="report-button"
+        look="primary"
+        color="positive"
+        ?disabled=${this._generatingReport}
+        @click=${this._generateReport}
+      >
+        ${this._generatingReport
+            ? "Generating report..."
+            : "Generate AI report"}
+      </uui-button>
+    `}
+
       </div>
     `;
   }
@@ -1053,16 +1117,6 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
       "PageTitle"
     )}
       </div>
-
-      ${this._generatedReport
-        ? html`
-      <uui-box headline="AI Report" class="report">
-        <div class="report-content">
-          ${this._generatedReport}
-        </div>
-      </uui-box>
-    `
-        : ""}
     `;
   }
 
@@ -1077,15 +1131,6 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
         max-width: 1400px;
         margin: 0 auto;
       }
-
-      .report {
-  margin-top: var(--uui-size-layout-1);
-}
-
-.report-content {
-  white-space: pre-wrap;
-  line-height: 1.6;
-}
 
       header {
         display: flex;
@@ -1120,6 +1165,7 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
 
       .period-controls {
         display: flex;
+        align-items: flex-end;
         gap: var(--uui-size-space-4);
       }
 
