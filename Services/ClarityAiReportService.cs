@@ -59,6 +59,7 @@ public class ClarityAiReportService : IClarityAiReportService
         {
             Model = _options.Model,
             Stream = false,
+            Think = false,
             ConversationId = Guid.NewGuid(),
             Messages = messages,
             Options = new ChatOptions
@@ -200,13 +201,7 @@ public class ClarityAiReportService : IClarityAiReportService
         string periodType,
         ClarityPeriodSummary summary)
     {
-        var dataJson =
-            JsonSerializer.Serialize(
-                summary,
-                new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                });
+        var dataJson = JsonSerializer.Serialize(summary);
 
         return $"""
         Write a {periodType} website behaviour and SEO insights report.
