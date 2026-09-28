@@ -36,7 +36,9 @@ namespace HuSignal.Composers
             builder.Services.AddOptions<AiGenerationOptions>().Bind(
                 builder.Config.GetSection(AiGenerationOptions.SectionName));
 
-            builder.Services.AddHttpClient<IClarityAiReportService, ClarityAiReportService>();
+            builder.Services.AddHttpClient<IClarityAiReportService, ClarityAiReportService>(client => {
+                client.Timeout = Timeout.InfiniteTimeSpan;
+            });
 
             builder.Services.Configure<SwaggerGenOptions>(options =>
             {
