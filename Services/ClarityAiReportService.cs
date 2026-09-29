@@ -130,7 +130,8 @@ public class ClarityAiReportService : IClarityAiReportService
                     content,
                     new JsonSerializerOptions
                     {
-                        PropertyNameCaseInsensitive = true
+                        PropertyNameCaseInsensitive = true,
+                        AllowTrailingCommas = true
                     });
         }
         catch (JsonException ex)
@@ -263,6 +264,7 @@ public class ClarityAiReportService : IClarityAiReportService
             - Return JSON only.
             - Do not return Markdown.
             - Do not wrap the JSON in code fences.
+            - Do not include trailing commas in JSON objects or arrays.
             - Do not include commentary before or after the JSON.
             - The response must match this structure exactly:
             - Do not use Markdown anywhere in string values.
