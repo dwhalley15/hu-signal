@@ -41,3 +41,35 @@ public class ChatOptions
     [JsonPropertyName("top_p")]
     public decimal TopP { get; set; }
 }
+
+public class ClarityAiReport
+{
+    public string Title { get; set; } = string.Empty;
+
+    public string ExecutiveSummary { get; set; } = string.Empty;
+
+    public string TrafficAndEngagement { get; set; } = string.Empty;
+
+    public string UserBehaviourIssues { get; set; } = string.Empty;
+
+    public string PopularContent { get; set; } = string.Empty;
+
+    public string AudienceAndTechnology { get; set; } = string.Empty;
+
+    public string Referrals { get; set; } = string.Empty;
+
+    public List<ClarityAiRecommendation> Recommendations { get; set; } = [];
+
+    public string Limitations { get; set; } = string.Empty;
+}
+
+public class ClarityAiRecommendation
+{
+    public string Priority { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Description { get; set; } = string.Empty;
+
+    public bool RequiresFurtherInvestigation { get; set; }
+}

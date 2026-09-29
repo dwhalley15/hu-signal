@@ -6,5 +6,5 @@ public class GenerateClarityReportResponse
 
     public DateTime To { get; set; }
 
-    public string Report { get; set; } = string.Empty;
+    public ClarityAiReport Report { get; set; } = new();
 }

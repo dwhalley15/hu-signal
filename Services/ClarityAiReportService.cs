@@ -111,13 +111,40 @@ public class ClarityAiReportService : IClarityAiReportService
 
         using var parsed = JsonDocument.Parse(body);
 
-        var report =
+        var content =
             parsed.RootElement
                 .GetProperty("choices")[0]
                 .GetProperty("message")
                 .GetProperty("content")
                 .GetString()
             ?? string.Empty;
+
+        content = CleanJsonResponse(content);
+
+        ClarityAiReport? report;
+
+        try
+        {
+            report =
+                JsonSerializer.Deserialize<ClarityAiReport>(
+                    content,
+                    new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException(
+                "The AI returned malformed JSON.",
+                ex);
+        }
+
+        if (report is null)
+        {
+            throw new InvalidOperationException(
+                "The AI returned an empty report response.");
+        }
 
         return new GenerateClarityReportResponse
         {
@@ -227,17 +254,44 @@ public class ClarityAiReportService : IClarityAiReportService
             recommendation.
 
             - Be concise but useful.
+
+            Output requirements:
+
+            - Return JSON only.
+            - Do not return Markdown.
+            - Do not wrap the JSON in code fences.
+            - Do not include commentary before or after the JSON.
+            - The response must match this structure exactly:
+
+            {
+            "title": "string",
+            "executiveSummary": "string",
+            "trafficAndEngagement": "string",
+            "userBehaviourIssues": "string",
+            "popularContent": "string",
+            "audienceAndTechnology": "string",
+            "referrals": "string",
+            "recommendations": [
+                {
+                "priority": "High | Medium | Low",
+                "title": "string",
+                "description": "string",
+                "requiresFurtherInvestigation": true
+                }
+            ],
+            "limitations": "string"
+            }
             """;
     }
 
     private static string BuildPrompt(
-        string periodType,
-        ClarityPeriodSummary summary)
+    string periodType,
+    ClarityPeriodSummary summary)
     {
         var dataJson = JsonSerializer.Serialize(summary);
 
         return $"""
-        Write a {periodType} website behaviour and SEO insights report.
+        Generate a structured {periodType} website behaviour and SEO insights report.
 
         Reporting period:
         {summary.From:yyyy-MM-dd} to {summary.To:yyyy-MM-dd}
@@ -246,63 +300,64 @@ public class ClarityAiReportService : IClarityAiReportService
         {summary.DaysWithData}
 
         Microsoft Clarity data:
-
         {dataJson}
 
-        Structure the report using these sections:
+        Populate every field in the required JSON response.
 
-        # Executive Summary
-
+        executiveSummary:
         Explain the most important findings in plain English.
 
-        # Traffic & Engagement
+        trafficAndEngagement:
+        Explain sessions, pages per session and scroll depth.
 
-        Summarise sessions, pages per session and scroll depth.
-        Explain what these metrics mean rather than just repeating
-        the numbers.
-
-        # User Behaviour Issues
-
+        userBehaviourIssues:
         Analyse quickbacks, rage clicks, dead clicks,
         excessive scrolling, error clicks and script errors.
 
-        Call out anything that deserves investigation.
-
-        # Popular Content
-
+        popularContent:
         Discuss the most visited pages and page titles.
 
-        Highlight pages that may deserve SEO or content attention.
+        audienceAndTechnology:
+        Summarise useful patterns across countries, devices,
+        browsers and operating systems.
 
-        # Audience & Technology
-
-        Summarise important patterns across countries,
-        devices, browsers and operating systems.
-
-        # Referrals
-
-        Summarise available referral information.
-
+        referrals:
+        Summarise referral information.
         Do not describe direct traffic as organic search.
 
-        # Recommended Actions
+        recommendations:
+        Return practical recommendations ordered by priority.
 
-        Give a prioritised set of practical recommendations.
+        Each recommendation must state whether it requires
+        further investigation.
 
-        Separate recommendations supported directly by the data from
-        areas that require further investigation.
+        limitations:
+        Explain important limitations such as small sample size,
+        limited days of data, or conclusions that cannot be drawn
+        from Microsoft Clarity alone.
 
-        Take the number of sessions and DaysWithData into account when
-        deciding how strongly to state a conclusion.
-
-        Focus on:
-        - SEO
-        - content
-        - usability
-        - technical issues
-        - opportunities for further investigation
-
-        Recommendations must be based on the supplied data.
+        Recommendations must be supported by the supplied data.
         """;
+    }
+
+    private static string CleanJsonResponse(string content)
+    {
+        content = content.Trim();
+
+        if (content.StartsWith("```json"))
+        {
+            content = content[7..];
+        }
+        else if (content.StartsWith("```"))
+        {
+            content = content[3..];
+        }
+
+        if (content.EndsWith("```"))
+        {
+            content = content[..^3];
+        }
+
+        return content.Trim();
     }
 }

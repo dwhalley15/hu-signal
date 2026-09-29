@@ -76,6 +76,32 @@ type ClarityPeriodSummary = {
   breakdowns: ClarityPeriodBreakdown[];
 };
 
+type ClarityAiRecommendation = {
+  priority: string;
+  title: string;
+  description: string;
+  requiresFurtherInvestigation: boolean;
+};
+
+type ClarityAiReport = {
+  title: string;
+  executiveSummary: string;
+  trafficAndEngagement: string;
+  userBehaviourIssues: string;
+  popularContent: string;
+  audienceAndTechnology: string;
+  referrals: string;
+  recommendations: ClarityAiRecommendation[];
+  limitations: string;
+};
+
+type GenerateClarityReportResponse = {
+  periodType: string;
+  from: string;
+  to: string;
+  report: ClarityAiReport;
+};
+
 type ViewMode = "latest" | "monthly" | "yearly";
 
 @customElement("hu-signal-dashboard")
@@ -108,7 +134,7 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
   private _generatingReport = false;
 
   @state()
-  private _generatedReport?: string;
+  private _generatedReport?: ClarityAiReport;
 
   override connectedCallback() {
     super.connectedCallback();
@@ -365,10 +391,11 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
         );
       }
 
-      const result = await response.json();
+      const result = await response.json() as GenerateClarityReportResponse;
 
       this._generatedReport = result.report;
-      this._downloadReport(result.report);
+
+      console.log("Hu Signal AI report", result.report);
 
     } catch (error) {
       this._error =
@@ -380,7 +407,7 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
     }
   }
 
-  private _downloadReport(report: string) {
+  /*private _downloadReport(report: string) {
     const monthNames = [
       "january",
       "february",
@@ -434,7 +461,7 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
     setTimeout(() => {
       URL.revokeObjectURL(url);
     }, 1000);
-  }
+  }*/
 
   private async _onYearChange(event: Event) {
     const select = event.target as HTMLSelectElement;
@@ -697,15 +724,14 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
 
         ${this._generatedReport
         ? html`
-      <uui-button
-        class="report-button"
-        look="primary"
-        @click=${() =>
-            this._downloadReport(this._generatedReport!)}
-      >
-        Download report again
-      </uui-button>
-    `
+            <uui-button
+              class="report-button"
+              look="primary"
+              disabled
+            >
+              Report generated
+            </uui-button>
+          `
         : html`
       <uui-button
         class="report-button"
