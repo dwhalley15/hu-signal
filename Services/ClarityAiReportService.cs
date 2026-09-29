@@ -19,6 +19,14 @@ public class ClarityAiReportService : IClarityAiReportService
         _options = options.Value;
     }
 
+    /// <summary>
+    /// Generates a structured AI-assisted Clarity report for the
+    /// requested reporting period.
+    ///
+    /// The AI response is validated before being returned. If the response
+    /// is malformed or incomplete, the same AI conversation is asked to
+    /// repair its previous response before the operation fails.
+    /// </summary>
     public async Task<GenerateClarityReportResponse> GenerateReportAsync(
         GenerateClarityReportRequest request,
         CancellationToken cancellationToken = default)
@@ -37,12 +45,12 @@ public class ClarityAiReportService : IClarityAiReportService
                 "There is no Clarity data available for the selected period.");
         }
 
-        var prompt = BuildPrompt(
-            request.PeriodType,
-            summary);
+        var conversationId =
+            Guid.NewGuid();
 
-        var messages = new List<ChatMessage>
-        {
+        var messages =
+            new List<ChatMessage>
+            {
             new()
             {
                 Role = "system",
@@ -51,100 +59,69 @@ public class ClarityAiReportService : IClarityAiReportService
             new()
             {
                 Role = "user",
-                Content = prompt
+                Content = BuildPrompt(
+                    request.PeriodType,
+                    summary)
             }
-        };
+            };
 
-        var aiRequest = new ChatCompletionRequest
+        const int maxRepairAttempts = 2;
+
+        ClarityAiReport? report = null;
+        string? lastValidationError = null;
+
+        for (
+            var attempt = 0;
+            attempt <= maxRepairAttempts;
+            attempt++)
         {
-            Model = _options.Model,
-            Stream = false,
-            Think = false,
-            ConversationId = Guid.NewGuid(),
-            Messages = messages,
-            Options = new ChatOptions
+            var content =
+                await SendAiRequestAsync(
+                    conversationId,
+                    messages,
+                    cancellationToken);
+
+            var validation = ValidateReportJson(content, summary);
+
+            if (validation.IsValid)
             {
-                ContextSize = _options.ContextSize,
-                Temperature = _options.Temperature,
-                TopP = _options.TopP
+                report = validation.Report;
+                break;
             }
-        };
 
-        var json = JsonSerializer.Serialize(aiRequest);
+            lastValidationError =
+                validation.Error;
 
-        using var httpRequest = new HttpRequestMessage(
-            HttpMethod.Post,
-            _options.BaseUrl);
+            if (attempt == maxRepairAttempts)
+            {
+                break;
+            }
 
-        httpRequest.Headers.Authorization =
-            new AuthenticationHeaderValue(
-                "Bearer",
-                _options.ApiKey);
+            // Preserve the exact invalid response so the model
+            // can see what it previously generated.
+            messages.Add(
+                new ChatMessage
+                {
+                    Role = "assistant",
+                    Content = content
+                });
 
-        var contentBytes = Encoding.UTF8.GetBytes(json);
-
-        httpRequest.Content = new ByteArrayContent(contentBytes);
-
-        httpRequest.Content.Headers.ContentType =
-            new MediaTypeHeaderValue("application/json");
-
-        using var timeoutCts =
-            new CancellationTokenSource(
-                TimeSpan.FromSeconds(
-                    _options.TimeoutSeconds));
-
-        using var linkedCts =
-            CancellationTokenSource.CreateLinkedTokenSource(
-                cancellationToken,
-                timeoutCts.Token);
-
-        using var response =
-            await _httpClient.SendAsync(
-                httpRequest,
-                linkedCts.Token);
-
-        response.EnsureSuccessStatusCode();
-
-        var body =
-            await response.Content.ReadAsStringAsync(
-                linkedCts.Token);
-
-        using var parsed = JsonDocument.Parse(body);
-
-        var content =
-            parsed.RootElement
-                .GetProperty("choices")[0]
-                .GetProperty("message")
-                .GetProperty("content")
-                .GetString()
-            ?? string.Empty;
-
-        content = CleanJsonResponse(content);
-
-        ClarityAiReport? report;
-
-        try
-        {
-            report =
-                JsonSerializer.Deserialize<ClarityAiReport>(
-                    content,
-                    new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true,
-                        AllowTrailingCommas = true
-                    });
-        }
-        catch (JsonException ex)
-        {
-            throw new InvalidOperationException(
-                "The AI returned malformed JSON.",
-                ex);
+            // Ask the same conversation to repair the response
+            // using the validation error returned by Hu Signal.
+            messages.Add(
+                new ChatMessage
+                {
+                    Role = "user",
+                    Content = BuildJsonRepairPrompt(
+                        validation.Error)
+                });
         }
 
         if (report is null)
         {
             throw new InvalidOperationException(
-                "The AI returned an empty report response.");
+                "The AI failed to produce a valid Hu Signal report. " +
+                $"Last validation error: {lastValidationError}");
         }
 
         return new GenerateClarityReportResponse
@@ -347,24 +324,47 @@ public class ClarityAiReportService : IClarityAiReportService
             - Every property below must be present.
             - The response must match this structure exactly:
 
+            Facts requirements:
+
+            - The "facts" object must copy the supplied numerical data exactly.
+            - Do not estimate, reinterpret or recalculate the supplied values.
+            - directReferrals means the ReferrerUrl breakdown whose Name and Url are both null.
+            - googleReferrals means the ReferrerUrl breakdown for https://www.google.com/.
+            - The narrative sections must agree with the values in "facts".
+
             {
-            "title": "string",
-            "executiveSummary": "string",
-            "trafficAndEngagement": "string",
-            "userBehaviourIssues": "string",
-            "popularContent": "string",
-            "audienceAndTechnology": "string",
-            "referrals": "string",
-            "recommendations": [
-                {
-                "priority": "High | Medium | Low",
                 "title": "string",
-                "description": "string",
-                "requiresFurtherInvestigation": true
+                "facts": {
+                    "daysWithData": 0,
+                    "totalSessions": 0,
+                    "botSessions": 0,
+                    "averagePagesPerSession": 0,
+                    "averageScrollDepth": 0,
+                    "deadClicks": 0,
+                    "rageClicks": 0,
+                    "quickbacks": 0,
+                    "scriptErrors": 0,
+                    "errorClicks": 0,
+                    "excessiveScrolls": 0,
+                    "directReferrals": 0,
+                    "googleReferrals": 0
+                },
+                "executiveSummary": "string",
+                "trafficAndEngagement": "string",
+                "userBehaviourIssues": "string",
+                "popularContent": "string",
+                "audienceAndTechnology": "string",
+                "referrals": "string",
+                "recommendations": [
+                    {
+                    "priority": "High | Medium | Low",
+                    "title": "string",
+                    "description": "string",
+                    "requiresFurtherInvestigation": true
+                    }
+                ],
+                "limitations": "string"
                 }
-            ],
-            "limitations": "string"
-            }
             """;
     }
 
@@ -398,6 +398,21 @@ public class ClarityAiReportService : IClarityAiReportService
             Microsoft Clarity data:
 
             {dataJson}
+
+            Before writing the narrative, populate the "facts" object by copying
+            the supplied metrics exactly.
+
+            Do not modify, estimate, round to different whole numbers, or reinterpret
+            the supplied counts.
+
+            For referral facts:
+
+            - directReferrals is the count from the ReferrerUrl breakdown where both
+            Name and Url are null.
+            - googleReferrals is the count for the Google referrer
+            https://www.google.com/.
+
+            All narrative sections must remain consistent with the "facts" object.
 
             Populate every field in the required JSON response.
 
@@ -567,24 +582,570 @@ public class ClarityAiReportService : IClarityAiReportService
             """;
     }
 
-    private static string CleanJsonResponse(string content)
+    /// <summary>
+    /// Removes common Markdown code fences that some models may add
+    /// around otherwise valid JSON responses.
+    /// </summary>
+    private static string CleanJsonResponse(
+        string content)
     {
-        content = content.Trim();
+        content =
+            content.Trim();
 
-        if (content.StartsWith("```json"))
+        if (content.StartsWith(
+                "```json",
+                StringComparison.OrdinalIgnoreCase))
         {
-            content = content[7..];
+            content =
+                content[7..];
         }
         else if (content.StartsWith("```"))
         {
-            content = content[3..];
+            content =
+                content[3..];
         }
 
         if (content.EndsWith("```"))
         {
-            content = content[..^3];
+            content =
+                content[..^3];
         }
 
         return content.Trim();
+    }
+
+    /// <summary>
+    /// Sends the current conversation to the configured AI endpoint
+    /// and returns the assistant's raw response content.
+    /// </summary>
+    private async Task<string> SendAiRequestAsync(
+        Guid conversationId,
+        IReadOnlyList<ChatMessage> messages,
+        CancellationToken cancellationToken)
+    {
+        var aiRequest =
+            new ChatCompletionRequest
+            {
+                Model = _options.Model,
+                Stream = false,
+                Think = false,
+                ConversationId = conversationId,
+                Messages = messages.ToList(),
+                Options = new ChatOptions
+                {
+                    ContextSize = _options.ContextSize,
+                    Temperature = _options.Temperature,
+                    TopP = _options.TopP
+                }
+            };
+
+        var json =
+            JsonSerializer.Serialize(
+                aiRequest);
+
+        using var httpRequest =
+            new HttpRequestMessage(
+                HttpMethod.Post,
+                _options.BaseUrl);
+
+        httpRequest.Headers.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                _options.ApiKey);
+
+        var contentBytes =
+            Encoding.UTF8.GetBytes(
+                json);
+
+        httpRequest.Content =
+            new ByteArrayContent(
+                contentBytes);
+
+        httpRequest.Content.Headers.ContentType =
+            new MediaTypeHeaderValue(
+                "application/json");
+
+        using var timeoutCts =
+            new CancellationTokenSource(
+                TimeSpan.FromSeconds(
+                    _options.TimeoutSeconds));
+
+        using var linkedCts =
+            CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken,
+                timeoutCts.Token);
+
+        using var response =
+            await _httpClient.SendAsync(
+                httpRequest,
+                linkedCts.Token);
+
+        response.EnsureSuccessStatusCode();
+
+        var body =
+            await response.Content.ReadAsStringAsync(
+                linkedCts.Token);
+
+        using var parsed =
+            JsonDocument.Parse(body);
+
+        var content =
+            parsed.RootElement
+                .GetProperty("choices")[0]
+                .GetProperty("message")
+                .GetProperty("content")
+                .GetString();
+
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            throw new InvalidOperationException(
+                "The AI returned an empty response.");
+        }
+
+        return content;
+    }
+
+    /// <summary>
+    /// Represents the result of validating an AI-generated
+    /// Clarity report response.
+    /// </summary>
+    private sealed class ReportValidationResult
+    {
+        public bool IsValid { get; init; }
+
+        public ClarityAiReport? Report { get; init; }
+
+        public string Error { get; init; } =
+            string.Empty;
+    }
+
+    /// <summary>
+    /// Validates the raw AI response as JSON and verifies that it
+    /// can be converted into a complete Clarity AI report.
+    /// </summary>
+    private static ReportValidationResult ValidateReportJson(
+        string content, ClarityPeriodSummary summary)
+    {
+        var cleanedContent =
+            CleanJsonResponse(content);
+
+        ClarityAiReport? report;
+
+        try
+        {
+            report =
+                JsonSerializer.Deserialize<ClarityAiReport>(
+                    cleanedContent,
+                    new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        AllowTrailingCommas = true
+                    });
+        }
+        catch (JsonException ex)
+        {
+            return new ReportValidationResult
+            {
+                IsValid = false,
+                Error =
+                    "The response is not valid JSON. " +
+                    ex.Message
+            };
+        }
+
+        if (report is null)
+        {
+            return new ReportValidationResult
+            {
+                IsValid = false,
+                Error =
+                    "The JSON response could not be converted " +
+                    "into a Clarity report."
+            };
+        }
+
+        var errors =
+            ValidateReportStructure(report);
+
+        errors.AddRange(
+            ValidateReportFacts(
+                report,
+                summary));
+
+        if (errors.Count > 0)
+        {
+            return new ReportValidationResult
+            {
+                IsValid = false,
+                Error =
+                    string.Join(
+                        " ",
+                        errors)
+            };
+        }
+
+        return new ReportValidationResult
+        {
+            IsValid = true,
+            Report = report
+        };
+    }
+
+    /// <summary>
+    /// Verifies that the factual metrics returned by the AI exactly match
+    /// the source Microsoft Clarity summary used to generate the report.
+    /// </summary>
+    private static List<string> ValidateReportFacts(
+        ClarityAiReport report,
+        ClarityPeriodSummary summary)
+    {
+        var errors =
+            new List<string>();
+
+        var facts =
+            report.Facts;
+
+        if (facts is null)
+        {
+            errors.Add(
+                "The facts object is missing.");
+
+            return errors;
+        }
+
+        if (facts.DaysWithData != summary.DaysWithData)
+        {
+            errors.Add(
+                $"daysWithData is incorrect. " +
+                $"Expected {summary.DaysWithData}, " +
+                $"received {facts.DaysWithData}.");
+        }
+
+        if (facts.TotalSessions != summary.TotalSessions)
+        {
+            errors.Add(
+                $"totalSessions is incorrect. " +
+                $"Expected {summary.TotalSessions}, " +
+                $"received {facts.TotalSessions}.");
+        }
+
+        if (facts.BotSessions != summary.BotSessions)
+        {
+            errors.Add(
+                $"botSessions is incorrect. " +
+                $"Expected {summary.BotSessions}, " +
+                $"received {facts.BotSessions}.");
+        }
+
+        if (!ApproximatelyEqual(
+                facts.AveragePagesPerSession,
+                summary.AveragePagesPerSession))
+        {
+            errors.Add(
+                $"averagePagesPerSession is incorrect. " +
+                $"Expected {summary.AveragePagesPerSession:F2}, " +
+                $"received {facts.AveragePagesPerSession:F2}.");
+        }
+
+        if (!ApproximatelyEqual(
+                facts.AverageScrollDepth,
+                summary.AverageScrollDepth))
+        {
+            errors.Add(
+                $"averageScrollDepth is incorrect. " +
+                $"Expected {summary.AverageScrollDepth:F2}, " +
+                $"received {facts.AverageScrollDepth:F2}.");
+        }
+
+        if (facts.DeadClicks != summary.DeadClicks)
+        {
+            errors.Add(
+                $"deadClicks is incorrect. " +
+                $"Expected {summary.DeadClicks}, " +
+                $"received {facts.DeadClicks}.");
+        }
+
+        if (facts.RageClicks != summary.RageClicks)
+        {
+            errors.Add(
+                $"rageClicks is incorrect. " +
+                $"Expected {summary.RageClicks}, " +
+                $"received {facts.RageClicks}.");
+        }
+
+        if (facts.Quickbacks != summary.Quickbacks)
+        {
+            errors.Add(
+                $"quickbacks is incorrect. " +
+                $"Expected {summary.Quickbacks}, " +
+                $"received {facts.Quickbacks}.");
+        }
+
+        if (facts.ScriptErrors != summary.ScriptErrors)
+        {
+            errors.Add(
+                $"scriptErrors is incorrect. " +
+                $"Expected {summary.ScriptErrors}, " +
+                $"received {facts.ScriptErrors}.");
+        }
+
+        if (facts.ErrorClicks != summary.ErrorClicks)
+        {
+            errors.Add(
+                $"errorClicks is incorrect. " +
+                $"Expected {summary.ErrorClicks}, " +
+                $"received {facts.ErrorClicks}.");
+        }
+
+        if (facts.ExcessiveScrolls != summary.ExcessiveScrolls)
+        {
+            errors.Add(
+                $"excessiveScrolls is incorrect. " +
+                $"Expected {summary.ExcessiveScrolls}, " +
+                $"received {facts.ExcessiveScrolls}.");
+        }
+
+        var expectedDirectReferrals =
+            GetReferrerCount(
+                summary,
+                name: null,
+                url: null);
+
+        var expectedGoogleReferrals =
+            GetReferrerCount(
+                summary,
+                name: "https://www.google.com/",
+                url: null);
+
+        if (
+            facts.DirectReferrals !=
+            expectedDirectReferrals)
+        {
+            errors.Add(
+                $"directReferrals is incorrect. " +
+                $"Expected {expectedDirectReferrals}, " +
+                $"received {facts.DirectReferrals}.");
+        }
+
+        if (
+            facts.GoogleReferrals !=
+            expectedGoogleReferrals)
+        {
+            errors.Add(
+                $"googleReferrals is incorrect. " +
+                $"Expected {expectedGoogleReferrals}, " +
+                $"received {facts.GoogleReferrals}.");
+        }
+
+        return errors;
+    }
+
+    /// <summary>
+    /// Returns the count for a specific ReferrerUrl breakdown record.
+    /// </summary>
+    private static int GetReferrerCount(
+        ClarityPeriodSummary summary,
+        string? name,
+        string? url)
+    {
+        var breakdown =
+            summary.Breakdowns.FirstOrDefault(
+                item =>
+                    item.MetricName.Equals(
+                        "ReferrerUrl",
+                        StringComparison.OrdinalIgnoreCase)
+                    &&
+                    string.Equals(
+                        item.Name,
+                        name,
+                        StringComparison.OrdinalIgnoreCase)
+                    &&
+                    string.Equals(
+                        item.Url,
+                        url,
+                        StringComparison.OrdinalIgnoreCase));
+
+        return breakdown?.Count ?? 0;
+    }
+
+   /// <summary>
+    /// Compares decimal metrics using a small tolerance so harmless
+    /// rounding differences do not fail report validation.
+    /// </summary>
+    private static bool ApproximatelyEqual(
+        decimal first,
+        decimal second,
+        decimal tolerance = 0.01m)
+    {
+        return Math.Abs(
+            first - second) <= tolerance;
+    }
+
+    /// <summary>
+    /// Checks that a deserialized report contains all content required
+    /// by the Hu Signal PDF report.
+    /// </summary>
+    private static List<string> ValidateReportStructure(
+        ClarityAiReport report)
+    {
+        var errors =
+            new List<string>();
+
+        if (string.IsNullOrWhiteSpace(
+                report.Title))
+        {
+            errors.Add(
+                "The title field is missing or empty.");
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                report.ExecutiveSummary))
+        {
+            errors.Add(
+                "The executiveSummary field is missing or empty.");
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                report.TrafficAndEngagement))
+        {
+            errors.Add(
+                "The trafficAndEngagement field is missing or empty.");
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                report.UserBehaviourIssues))
+        {
+            errors.Add(
+                "The userBehaviourIssues field is missing or empty.");
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                report.PopularContent))
+        {
+            errors.Add(
+                "The popularContent field is missing or empty.");
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                report.AudienceAndTechnology))
+        {
+            errors.Add(
+                "The audienceAndTechnology field is missing or empty.");
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                report.Referrals))
+        {
+            errors.Add(
+                "The referrals field is missing or empty.");
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                report.Limitations))
+        {
+            errors.Add(
+                "The limitations field is missing or empty.");
+        }
+
+        if (report.Recommendations is null)
+        {
+            errors.Add(
+                "The recommendations array is missing.");
+
+            return errors;
+        }
+
+        for (
+            var index = 0;
+            index < report.Recommendations.Count;
+            index++)
+        {
+            var recommendation =
+                report.Recommendations[index];
+
+            if (string.IsNullOrWhiteSpace(
+                    recommendation.Title))
+            {
+                errors.Add(
+                    $"Recommendation {index + 1} " +
+                    "is missing a title.");
+            }
+
+            if (string.IsNullOrWhiteSpace(
+                    recommendation.Description))
+            {
+                errors.Add(
+                    $"Recommendation {index + 1} " +
+                    "is missing a description.");
+            }
+
+            if (string.IsNullOrWhiteSpace(
+                    recommendation.Priority))
+            {
+                errors.Add(
+                    $"Recommendation {index + 1} " +
+                    "is missing a priority.");
+
+                continue;
+            }
+
+            var validPriority =
+                recommendation.Priority.Equals(
+                    "High",
+                    StringComparison.OrdinalIgnoreCase)
+                ||
+                recommendation.Priority.Equals(
+                    "Medium",
+                    StringComparison.OrdinalIgnoreCase)
+                ||
+                recommendation.Priority.Equals(
+                    "Low",
+                    StringComparison.OrdinalIgnoreCase);
+
+            if (!validPriority)
+            {
+                errors.Add(
+                    $"Recommendation {index + 1} has invalid " +
+                    $"priority '{recommendation.Priority}'. " +
+                    "Priority must be High, Medium or Low.");
+            }
+        }
+
+        return errors;
+    }
+
+    /// <summary>
+    /// Builds the corrective prompt sent to the same AI conversation
+    /// when the previous report fails JSON or structural validation.
+    /// </summary>
+    private static string BuildJsonRepairPrompt(
+        string validationError)
+    {
+        return $"""
+        Your previous response failed validation and cannot be used.
+
+        Validation error:
+
+        {validationError}
+
+        Correct your previous response.
+
+        Requirements:
+
+        - Return the COMPLETE corrected JSON object.
+        - Do not return only the corrected field.
+        - Preserve valid content from the previous response where possible.
+        - Do not explain the error.
+        - Do not apologise.
+        - Do not include Markdown.
+        - Do not use code fences.
+        - Do not include text before or after the JSON.
+        - Ensure every required property is present.
+        - Ensure all strings have closing quotation marks.
+        - Ensure all arrays and objects are properly closed.
+        - Do not include trailing commas.
+        - Keep narrative fields concise enough to avoid unnecessary output.
+        - Return valid JSON only.
+        """;
     }
 }

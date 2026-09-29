@@ -46,6 +46,8 @@ public class ClarityAiReport
 {
     public string Title { get; set; } = string.Empty;
 
+    public ClarityAiReportFacts Facts { get; set; } = new();
+
     public string ExecutiveSummary { get; set; } = string.Empty;
 
     public string TrafficAndEngagement { get; set; } = string.Empty;
@@ -72,4 +74,33 @@ public class ClarityAiRecommendation
     public string Description { get; set; } = string.Empty;
 
     public bool RequiresFurtherInvestigation { get; set; }
+}
+
+public class ClarityAiReportFacts
+{
+    public int DaysWithData { get; set; }
+
+    public int TotalSessions { get; set; }
+
+    public int BotSessions { get; set; }
+
+    public decimal AveragePagesPerSession { get; set; }
+
+    public decimal AverageScrollDepth { get; set; }
+
+    public int DeadClicks { get; set; }
+
+    public int RageClicks { get; set; }
+
+    public int Quickbacks { get; set; }
+
+    public int ScriptErrors { get; set; }
+
+    public int ErrorClicks { get; set; }
+
+    public int ExcessiveScrolls { get; set; }
+
+    public int DirectReferrals { get; set; }
+
+    public int GoogleReferrals { get; set; }
 }
