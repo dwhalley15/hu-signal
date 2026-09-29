@@ -76,32 +76,6 @@ type ClarityPeriodSummary = {
   breakdowns: ClarityPeriodBreakdown[];
 };
 
-type ClarityAiRecommendation = {
-  priority: string;
-  title: string;
-  description: string;
-  requiresFurtherInvestigation: boolean;
-};
-
-type ClarityAiReport = {
-  title: string;
-  executiveSummary: string;
-  trafficAndEngagement: string;
-  userBehaviourIssues: string;
-  popularContent: string;
-  audienceAndTechnology: string;
-  referrals: string;
-  recommendations: ClarityAiRecommendation[];
-  limitations: string;
-};
-
-type GenerateClarityReportResponse = {
-  periodType: string;
-  from: string;
-  to: string;
-  report: ClarityAiReport;
-};
-
 type ViewMode = "latest" | "monthly" | "yearly";
 
 @customElement("hu-signal-dashboard")
@@ -132,9 +106,6 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
 
   @state()
   private _generatingReport = false;
-
-  @state()
-  private _generatedReport?: ClarityAiReport;
 
   override connectedCallback() {
     super.connectedCallback();
@@ -340,7 +311,6 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
   private async _setViewMode(mode: ViewMode) {
     this._viewMode = mode;
     this._error = undefined;
-    this._generatedReport = undefined;
 
     if (mode === "latest") {
       await this._loadLatestSnapshot();
@@ -356,21 +326,20 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
     }
 
     this._generatingReport = true;
-    this._generatedReport = undefined;
     this._error = undefined;
 
     try {
       const token = await this._getAuthToken();
 
       const response = await fetch(
-        "/umbraco/husignal/api/v1/clarity/report",
+        "/umbraco/husignal/api/v1/clarity/report/pdf",
         {
           method: "POST",
           credentials: "include",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
-            Accept: "application/json",
+            Accept: "application/pdf",
           },
           body: JSON.stringify({
             periodType: this._viewMode,
@@ -391,11 +360,15 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
         );
       }
 
-      const result = await response.json() as GenerateClarityReportResponse;
+      const blob = await response.blob();
 
-      this._generatedReport = result.report;
+      const contentDisposition =
+        response.headers.get("content-disposition");
 
-      console.log("Hu Signal AI report", result.report);
+      const filename =
+        this._getReportFilename(contentDisposition);
+
+      this._downloadPdf(blob, filename);
 
     } catch (error) {
       this._error =
@@ -407,40 +380,49 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
     }
   }
 
-  /*private _downloadReport(report: string) {
-    const monthNames = [
-      "january",
-      "february",
-      "march",
-      "april",
-      "may",
-      "june",
-      "july",
-      "august",
-      "september",
-      "october",
-      "november",
-      "december",
-    ];
+  private _getReportFilename(
+    contentDisposition: string | null
+  ) {
+    if (contentDisposition) {
+      const utf8Match =
+        contentDisposition.match(
+          /filename\*=UTF-8''([^;]+)/
+        );
 
-    const period =
-      this._viewMode === "monthly"
-        ? `${monthNames[this._selectedMonth - 1]}-${this._selectedYear}`
-        : `${this._selectedYear}`;
-
-    const filename =
-      `hu-signal-${this._viewMode}-report-${period}.md`;
-
-    const blob = new Blob(
-      [report],
-      {
-        type: "text/markdown;charset=utf-8",
+      if (utf8Match?.[1]) {
+        return decodeURIComponent(utf8Match[1]);
       }
-    );
 
-    const url = URL.createObjectURL(blob);
+      const filenameMatch =
+        contentDisposition.match(
+          /filename="?([^"]+)"?/
+        );
 
-    const link = document.createElement("a");
+      if (filenameMatch?.[1]) {
+        return filenameMatch[1];
+      }
+    }
+
+    if (this._viewMode === "monthly") {
+      const month = String(
+        this._selectedMonth
+      ).padStart(2, "0");
+
+      return `hu-signal-monthly-report-${this._selectedYear}-${month}.pdf`;
+    }
+
+    return `hu-signal-yearly-report-${this._selectedYear}.pdf`;
+  }
+
+  private _downloadPdf(
+    blob: Blob,
+    filename: string
+  ) {
+    const url =
+      URL.createObjectURL(blob);
+
+    const link =
+      document.createElement("a");
 
     link.href = url;
     link.download = filename;
@@ -448,9 +430,12 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
     link.target = "_blank";
     link.rel = "noopener";
 
-    link.addEventListener("click", (event) => {
-      event.stopPropagation();
-    });
+    link.addEventListener(
+      "click",
+      (event) => {
+        event.stopPropagation();
+      }
+    );
 
     document.body.appendChild(link);
 
@@ -461,13 +446,12 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
     setTimeout(() => {
       URL.revokeObjectURL(url);
     }, 1000);
-  }*/
+  }
 
   private async _onYearChange(event: Event) {
     const select = event.target as HTMLSelectElement;
 
     this._selectedYear = Number(select.value);
-    this._generatedReport = undefined;
 
     if (this._viewMode !== "latest") {
       await this._loadPeriodData();
@@ -478,7 +462,6 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
     const select = event.target as HTMLSelectElement;
 
     this._selectedMonth = Number(select.value);
-    this._generatedReport = undefined;
 
     if (this._viewMode === "monthly") {
       await this._loadPeriodData();
@@ -722,30 +705,17 @@ export class HuSignalDashboardElement extends UmbElementMixin(LitElement) {
           </select>
         </label>
 
-        ${this._generatedReport
-        ? html`
-            <uui-button
-              class="report-button"
-              look="primary"
-              disabled
-            >
-              Report generated
-            </uui-button>
-          `
-        : html`
-      <uui-button
-        class="report-button"
-        look="primary"
-        color="positive"
-        ?disabled=${this._generatingReport}
-        @click=${this._generateReport}
-      >
-        ${this._generatingReport
-            ? "Generating report..."
-            : "Generate AI report"}
-      </uui-button>
-    `}
-
+        <uui-button
+          class="report-button"
+          look="primary"
+          color="positive"
+          ?disabled=${this._generatingReport}
+          @click=${this._generateReport}
+        >
+          ${this._generatingReport
+                ? "Generating PDF..."
+                : "Generate PDF report"}
+        </uui-button>
       </div>
     `;
   }

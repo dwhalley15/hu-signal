@@ -228,9 +228,12 @@ public class ClarityAiReportService : IClarityAiReportService
             performance or search rankings unless those metrics are
             explicitly supplied.
 
-            - Behavioural signals such as quickbacks, dead clicks and
-            rage clicks indicate areas worth investigating. Do not
-            state a specific cause unless the supplied data proves it.
+            - A dead click means a click or tap did not appear to result in a meaningful response.
+            Do not automatically describe dead clicks as broken links or non-existent pages.
+
+            - A quickback means a user returned quickly after navigating.
+            Do not state a specific cause such as poor content, design, speed or relevance
+            unless the supplied data proves it.
 
             - Google appearing as a referrer means traffic arrived from
             Google. Do not automatically describe that traffic as
@@ -262,6 +265,8 @@ public class ClarityAiReportService : IClarityAiReportService
             - Do not wrap the JSON in code fences.
             - Do not include commentary before or after the JSON.
             - The response must match this structure exactly:
+            - Do not use Markdown anywhere in string values.
+            - URLs must be returned as plain text.
 
             {
             "title": "string",

@@ -15,16 +15,20 @@ namespace HuSignal.Controllers
 
         private readonly IClarityAiReportService _clarityAiReportService;
 
+        private readonly IClarityPdfReportService _clarityPdfReportService;
+
         public HuSignalApiController(
             IClarityImportService clarityImportService,
             IClarityRepository clarityRepository,
             IClarityReportingService clarityReportingService,
-            IClarityAiReportService clarityAiReportService)
+            IClarityAiReportService clarityAiReportService,
+            IClarityPdfReportService clarityPdfReportService)
         {
             _clarityImportService = clarityImportService;
             _clarityRepository = clarityRepository;
             _clarityReportingService = clarityReportingService;
             _clarityAiReportService = clarityAiReportService;
+            _clarityPdfReportService = clarityPdfReportService;
         }
 
         [HttpPost("clarity/import")]
@@ -134,6 +138,51 @@ namespace HuSignal.Controllers
                     cancellationToken);
 
             return Ok(result);
+        }
+
+        [HttpPost("clarity/report/pdf")]
+        [ProducesResponseType(
+        typeof(FileContentResult),
+        StatusCodes.Status200OK)]
+        public async Task<IActionResult> GenerateClarityPdfReport(
+            [FromBody] GenerateClarityReportRequest request,
+            CancellationToken cancellationToken)
+        {
+            var result =
+                await _clarityAiReportService.GenerateReportAsync(
+                    request,
+                    cancellationToken);
+
+            var pdf =
+                _clarityPdfReportService.GeneratePdf(result);
+
+            var filename =
+                BuildReportFilename(
+                    request,
+                    result);
+
+            return File(
+                pdf,
+                "application/pdf",
+                filename);
+        }
+
+        private static string BuildReportFilename(
+        GenerateClarityReportRequest request,
+        GenerateClarityReportResponse response)
+        {
+            if (request.PeriodType.Equals(
+                    "monthly",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return
+                    $"hu-signal-monthly-report-" +
+                    $"{response.From:yyyy-MM}.pdf";
+            }
+
+            return
+                $"hu-signal-yearly-report-" +
+                $"{response.From:yyyy}.pdf";
         }
     }
 }

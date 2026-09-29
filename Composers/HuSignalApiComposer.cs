@@ -29,6 +29,8 @@ namespace HuSignal.Composers
 
             builder.Services.AddScoped<IClarityReportingService, ClarityReportingService>();
 
+            builder.Services.AddScoped<IClarityPdfReportService, ClarityPdfReportService>();
+
             builder.Services.AddSingleton<IOperationIdHandler, HuSignalOperationIdHandler>();
 
             builder.Services.AddHostedService<ClarityImportBackgroundService>();
