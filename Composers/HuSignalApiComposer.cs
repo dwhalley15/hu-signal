@@ -9,6 +9,7 @@ using Umbraco.Cms.Api.Common.OpenApi;
 using Umbraco.Cms.Api.Management.OpenApi;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
+using QuestPDF.Infrastructure;
 
 
 namespace HuSignal.Composers
@@ -17,6 +18,9 @@ namespace HuSignal.Composers
     {
         public void Compose(IUmbracoBuilder builder)
         {
+
+            QuestPDF.Settings.License = LicenseType.Community;
+
             builder.Services
                 .AddOptions<HuSignalSettings>()
                 .Bind(builder.Config.GetSection(HuSignalSettings.SectionName));
