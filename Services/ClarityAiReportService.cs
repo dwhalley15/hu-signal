@@ -23,15 +23,16 @@ public class ClarityAiReportService : IClarityAiReportService
     /// Generates a structured AI-assisted Clarity report for the
     /// requested reporting period.
     ///
-    /// The AI response is validated before being returned. If the response
-    /// is malformed or incomplete, the same AI conversation is asked to
-    /// repair its previous response before the operation fails.
+    /// AI responses are validated before being returned. If validation
+    /// fails, the existing AI conversation is asked to repair its previous
+    /// response using the same conversation identifier.
     /// </summary>
     public async Task<GenerateClarityReportResponse> GenerateReportAsync(
         GenerateClarityReportRequest request,
         CancellationToken cancellationToken = default)
     {
-        var (from, to) = GetPeriod(request);
+        var (from, to) =
+            GetPeriod(request);
 
         var summary =
             await _clarityReportingService.GetSummaryAsync(
@@ -48,7 +49,14 @@ public class ClarityAiReportService : IClarityAiReportService
         var conversationId =
             Guid.NewGuid();
 
-        var messages =
+        const int maxRepairAttempts = 2;
+
+        ClarityAiReport? report = null;
+        string? lastValidationError = null;
+
+        // The first request creates the conversation and supplies
+        // the system instructions plus the source Clarity data.
+        IReadOnlyList<ChatMessage> messages =
             new List<ChatMessage>
             {
             new()
@@ -65,11 +73,6 @@ public class ClarityAiReportService : IClarityAiReportService
             }
             };
 
-        const int maxRepairAttempts = 2;
-
-        ClarityAiReport? report = null;
-        string? lastValidationError = null;
-
         for (
             var attempt = 0;
             attempt <= maxRepairAttempts;
@@ -81,11 +84,16 @@ public class ClarityAiReportService : IClarityAiReportService
                     messages,
                     cancellationToken);
 
-            var validation = ValidateReportJson(content, summary);
+            var validation =
+                ValidateReportJson(
+                    content,
+                    summary);
 
             if (validation.IsValid)
             {
-                report = validation.Report;
+                report =
+                    validation.Report;
+
                 break;
             }
 
@@ -97,24 +105,25 @@ public class ClarityAiReportService : IClarityAiReportService
                 break;
             }
 
-            // Preserve the exact invalid response so the model
-            // can see what it previously generated.
-            messages.Add(
-                new ChatMessage
+            /*
+             * The Unified LLM API persists conversation history using
+             * ConversationId.
+             *
+             * Therefore, repair requests must send ONLY the new user
+             * instruction. Re-sending the existing system/user/assistant
+             * messages would duplicate conversation history and break
+             * llama.cpp's required user/assistant role ordering.
+             */
+            messages =
+                new List<ChatMessage>
                 {
-                    Role = "assistant",
-                    Content = content
-                });
-
-            // Ask the same conversation to repair the response
-            // using the validation error returned by Hu Signal.
-            messages.Add(
-                new ChatMessage
+                new()
                 {
                     Role = "user",
                     Content = BuildJsonRepairPrompt(
                         validation.Error)
-                });
+                }
+                };
         }
 
         if (report is null)
@@ -968,7 +977,7 @@ public class ClarityAiReportService : IClarityAiReportService
         return breakdown?.Count ?? 0;
     }
 
-   /// <summary>
+    /// <summary>
     /// Compares decimal metrics using a small tolerance so harmless
     /// rounding differences do not fail report validation.
     /// </summary>
@@ -1116,25 +1125,33 @@ public class ClarityAiReportService : IClarityAiReportService
 
     /// <summary>
     /// Builds the corrective prompt sent to the same AI conversation
-    /// when the previous report fails JSON or structural validation.
+    /// when the previous report fails JSON, structural or factual validation.
+    /// </summary>
+    /// <summary>
+    /// Builds the corrective prompt sent to the same AI conversation
+    /// when the previous report fails JSON, structural or factual validation.
     /// </summary>
     private static string BuildJsonRepairPrompt(
         string validationError)
     {
         return $"""
-        Your previous response failed validation and cannot be used.
+        Your previous response failed Hu Signal validation and cannot be used.
 
-        Validation error:
+        Validation errors:
 
         {validationError}
 
-        Correct your previous response.
+        Correct your previous response and return the complete report again.
 
         Requirements:
 
         - Return the COMPLETE corrected JSON object.
-        - Do not return only the corrected field.
+        - Do not return only the corrected fields.
         - Preserve valid content from the previous response where possible.
+        - Correct every issue listed in the validation errors.
+        - Any expected factual values shown in the validation errors must be used exactly.
+        - Ensure the narrative agrees with the corrected facts.
+        - Do not invent or substitute different metric values.
         - Do not explain the error.
         - Do not apologise.
         - Do not include Markdown.

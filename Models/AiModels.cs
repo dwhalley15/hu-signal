@@ -46,7 +46,7 @@ public class ClarityAiReport
 {
     public string Title { get; set; } = string.Empty;
 
-    public ClarityAiReportFacts Facts { get; set; } = new();
+    public ClarityAiReportFacts? Facts { get; set; }
 
     public string ExecutiveSummary { get; set; } = string.Empty;
 
