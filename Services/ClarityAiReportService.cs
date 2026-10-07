@@ -297,19 +297,36 @@ public class ClarityAiReportService : IClarityAiReportService
 
             Recommendations:
 
-            - Recommendations must be based on the supplied data.
-            - Prefer investigation or testing when the data is insufficient to
-            support a stronger action.
-            - Priorities must reflect the evidence available.
-            - Do not use "High Priority" solely because a raw count appears large;
-            consider the number of sessions and DaysWithData as context.
-            - Do not include priority labels inside the recommendation description.
-            - Do not include "Requires Further Investigation: Yes", "No", or
-            similar metadata inside the recommendation description.
-            - Use only the dedicated "priority" and
-            "requiresFurtherInvestigation" JSON properties for that metadata.
-            - Recommendation descriptions should contain only the explanation and
-            suggested action.
+                - Recommendations must be based on the supplied data.
+                - Prefer investigation or testing when the data is insufficient to
+                support a stronger action.
+                - Priorities must reflect the evidence available.
+                - Do not use "High Priority" solely because a raw count appears large;
+                consider the number of sessions and DaysWithData as context.
+                - Do not include priority labels inside the recommendation description.
+                - Do not include "Requires Further Investigation: Yes", "No", or
+                similar metadata inside the recommendation description.
+                - Use only the dedicated "priority" and
+                "requiresFurtherInvestigation" JSON properties for that metadata.
+                - Recommendation descriptions should contain only the explanation and
+                suggested action.
+                - When requiresFurtherInvestigation is true, the recommendation must
+                explain how the reader can investigate the issue further using
+                Microsoft Clarity.
+                - Direct the reader towards the most relevant Clarity investigation tool:
+                session recordings, heatmaps, or both.
+                - Session recordings should normally be recommended when understanding
+                the sequence of user actions, navigation behaviour, unexpected clicks,
+                quickbacks, errors or possible friction would help establish the cause.
+                - Heatmaps should normally be recommended when understanding where users
+                click, how far they scroll, or how users interact with a page layout
+                would help establish the cause.
+                - Where both would provide useful evidence, recommend both.
+                - Do not imply that a heatmap or recording will prove a particular cause.
+                Describe them as tools for investigating the observed signal.
+                - Make the suggested investigation specific to the behavioural signal
+                or page identified in the supplied data rather than giving a generic
+                instruction to "check Clarity".
 
             Writing style:
 
@@ -567,6 +584,31 @@ public class ClarityAiReportService : IClarityAiReportService
 
             Set requiresFurtherInvestigation to true when the supplied Clarity data
             identifies a signal but does not establish its cause.
+
+            When requiresFurtherInvestigation is true, the recommended action must
+            direct the reader towards Microsoft Clarity to investigate the signal further.
+
+            Recommend the most appropriate Clarity investigation method:
+
+            - Session recordings when understanding individual user journeys,
+            navigation behaviour, sequences of actions, unexpected clicks,
+            quickbacks, errors or possible friction would help establish the cause.
+
+            - Heatmaps when understanding click locations, interaction patterns,
+            page layout or scroll behaviour would provide useful evidence.
+
+            - Both session recordings and heatmaps when they provide complementary
+            evidence.
+
+            Where possible, refer to the specific page or behavioural signal that
+            should be investigated and briefly explain what the reader should look for.
+
+            Do not imply that session recordings or heatmaps will prove a particular
+            cause. They should be presented as tools for gathering further evidence.
+
+            Avoid generic instructions such as "investigate this further" when
+            Microsoft Clarity session recordings or heatmaps can provide a practical
+            next step.
 
             Prefer investigation-focused recommendations when the sample size or
             data coverage is limited.
