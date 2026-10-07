@@ -12,10 +12,10 @@
     <Title>HuSignal</Title>
 
     <!-- Packaging metadata -->
-    <Version>0.1.3</Version>
+    <Version>0.1.4</Version>
     <Authors>David Whalley</Authors>
     <Company>the human tech agency</Company>
-    <Description></Description>
+    <Description>Microsoft Clarity analytics, behavioural insights and AI-assisted SEO reporting for the Umbraco backoffice.</Description>
     <PackageTags>umbraco umbraco-marketplace seo analytics clarity reporting</PackageTags>
     <PackageProjectUrl>https://github.com/dwhalley15/hu-signal</PackageProjectUrl>
     <RepositoryUrl>https://github.com/dwhalley15/hu-signal</RepositoryUrl>
