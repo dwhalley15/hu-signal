@@ -12,7 +12,7 @@
     <Title>HuSignal</Title>
 
     <!-- Packaging metadata -->
-    <Version>0.1.4</Version>
+    <Version>0.1.5</Version>
     <Authors>David Whalley</Authors>
     <Company>the human tech agency</Company>
     <Description>Microsoft Clarity analytics, behavioural insights and AI-assisted SEO reporting for the Umbraco backoffice.</Description>
