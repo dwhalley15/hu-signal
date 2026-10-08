@@ -8,7 +8,7 @@
     "ImageUrl": "https://avatars.githubusercontent.com/u/77077742?v=4",
     "SyncContributorsFromRepository": true
   },
-  "Categories": "Analytics & Insights",
+  "Category": "Analytics & Insights",
   "Description": "Microsoft Clarity analytics and behavioural insights for the Umbraco backoffice. HuSignal brings Clarity data into Umbraco, highlights behavioural signals such as dead clicks, quickbacks, rage clicks and scrolling patterns, and can generate AI-assisted reports with practical recommendations for further investigation using Clarity heatmaps and session recordings.",
   "DocumentationUrl": "https://github.com/dwhalley15/hu-signal#readme",
   "IssueTrackerUrl": "https://github.com/dwhalley15/hu-signal/issues",

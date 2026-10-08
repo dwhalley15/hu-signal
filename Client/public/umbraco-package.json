@@ -1,7 +1,7 @@
 {
   "id": "HuSignal",
   "name": "HuSignal",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "allowTelemetry": true,
   "extensions": [
     {
